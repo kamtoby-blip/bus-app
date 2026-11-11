@@ -1,200 +1,610 @@
 <!DOCTYPE html>
 <html lang="zh-HK">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>欣安邨 巴士實時報站屏</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body { background-color: #050505; color: #fff; height: 100vh; overflow: hidden; padding: 15px; display: flex; flex-direction: column; cursor: pointer; }
-    
-    header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #333; padding-bottom: 12px; margin-bottom: 15px; }
-    .title { font-size: 22px; font-weight: bold; color: #ffcc00; display: flex; align-items: center; gap: 8px; }
-    .live-tag { background-color: #e60012; color: #fff; font-size: 12px; padding: 2px 8px; border-radius: 4px; font-weight: bold; }
-    .clock { font-size: 28px; font-weight: bold; font-family: monospace; color: #00ffcc; }
-    
-    .bus-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
-    .bus-card { background: #121212; border-left: 6px solid #e60012; border-radius: 8px; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,0.5); }
-    
-    .route-info { display: flex; align-items: center; gap: 15px; }
-    .route-no { font-size: 32px; font-weight: 900; width: 85px; color: #fff; }
-    .dest-info { display: flex; flex-direction: column; }
-    .dest-name { font-size: 18px; font-weight: bold; color: #ddd; }
-    .stop-name { font-size: 12px; color: #888; margin-top: 2px; }
-    
-    .eta-info { text-align: right; }
-    .eta-time { font-size: 32px; font-weight: bold; color: #00ff66; font-family: monospace; }
-    .eta-arriving { color: #ff3333; animation: blink 1s infinite; }
-    .eta-sub { font-size: 12px; color: #aaa; margin-top: 2px; }
-    
-    @keyframes blink { 50% { opacity: 0.3; } }
-    
-    footer { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #222; padding-top: 10px; margin-top: 10px; font-size: 12px; color: #666; }
-    .status-ok { color: #00cc66; }
-    .status-err { color: #ff4444; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+<title>欣安邨巴士資訊屏 v2</title>
+
+<style>
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+
+body{
+background:#050505;
+color:#fff;
+height:100vh;
+overflow:hidden;
+padding:15px;
+display:flex;
+flex-direction:column;
+cursor:pointer;
+}
+
+header{
+display:flex;
+justify-content:space-between;
+align-items:center;
+border-bottom:2px solid #333;
+padding-bottom:12px;
+margin-bottom:12px;
+}
+
+.title{
+font-size:24px;
+font-weight:900;
+color:#ffcc00;
+}
+
+.live{
+background:#d60000;
+padding:3px 8px;
+border-radius:4px;
+font-size:12px;
+margin-left:8px;
+}
+
+.clock{
+font-size:30px;
+font-family:monospace;
+font-weight:bold;
+color:#00ffcc;
+}
+
+.bus-list{
+flex:1;
+overflow-y:auto;
+display:flex;
+flex-direction:column;
+gap:10px;
+}
+
+.bus-card{
+background:#121212;
+border-left:6px solid #e60012;
+border-radius:8px;
+padding:12px 16px;
+display:flex;
+justify-content:space-between;
+align-items:center;
+box-shadow:0 3px 10px rgba(0,0,0,.5);
+}
+
+.route-block{
+display:flex;
+align-items:center;
+gap:15px;
+}
+
+.route{
+font-size:34px;
+font-weight:900;
+width:90px;
+}
+
+.dest{
+font-size:18px;
+font-weight:bold;
+}
+
+.stop{
+font-size:12px;
+color:#999;
+margin-top:3px;
+}
+
+.eta-main{
+font-size:28px;
+font-weight:bold;
+color:#00ff66;
+text-align:right;
+}
+
+.arriving{
+color:#ff4444;
+animation:blink 1s infinite;
+}
+
+.eta-sub{
+font-size:11px;
+color:#888;
+text-align:right;
+margin-top:4px;
+}
+
+footer{
+display:flex;
+justify-content:space-between;
+font-size:12px;
+color:#888;
+border-top:1px solid #222;
+padding-top:10px;
+margin-top:10px;
+}
+
+.ok{
+color:#00cc66;
+}
+
+.err{
+color:#ff5555;
+}
+
+@keyframes blink{
+50%{
+opacity:.2;
+}
+}
+</style>
 </head>
 <body>
 
-  <header>
-    <div class="title">
-      欣安邨 巴士到站屏
-      <span class="live-tag">GOV LIVE</span>
-    </div>
-    <div class="clock" id="clock">--:--:--</div>
-  </header>
+<header>
 
-  <div class="bus-list" id="busList">
-    <div style="text-align:center; padding: 40px; color: #888;">正在連接政府 API 擴大搜尋範圍...</div>
-  </div>
+<div class="title">
+欣安邨 巴士資訊屏
+<span class="live">LIVE</span>
+</div>
 
-  <footer>
-    <div id="status">數據來源：香港政府資料一線通 (data.gov.hk)</div>
-    <div id="lastUpdate">更新中...</div>
-  </footer>
+<div class="clock" id="clock">
+--:--:--
+</div>
 
-  <script>
-    // 擴大涵蓋欣安邨及周邊主要站點（確保隨時有熱門路線 87D, 85X, 286C 等數據）
-    const KMB_STOPS = [
-      { id: '6314BAEA00947DE6', name: '欣安邨' },
-      { id: '9079A492BF4A5964', name: '恒安站' },
-      { id: '97BFEAE65A8C1FA4', name: '保泰街' },
-      { id: '2D395CB19077977F', name: '聽濤雅苑 (寧泰路)' }
-    ];
+</header>
 
-    let cachedBusData = [];
+<div class="bus-list" id="busList">
 
-    document.body.addEventListener('click', () => {
-      if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen().catch(() => {});
-      }
-    });
+<div style="padding:40px;text-align:center;color:#888;">
+正在載入資料...
+</div>
 
-    function tick() {
-      const now = new Date();
-      document.getElementById('clock').innerText = now.toTimeString().split(' ')[0];
-      if (cachedBusData.length > 0) {
-        updateDOMCountdowns(now);
-      }
-    }
-    setInterval(tick, 1000);
+</div>
 
-    async function fetchLiveETA() {
-      const statusEl = document.getElementById('status');
-      const lastUpdateEl = document.getElementById('lastUpdate');
-      let allEta = [];
+<footer>
 
-      try {
-        for (const stop of KMB_STOPS) {
-          const url = `https://data.etabus.gov.hk/v1/transport/kmb/stop-eta/${stop.id}?_t=${Date.now()}`;
-          const res = await fetch(url, { cache: 'no-store' });
-          
-          if (res.ok) {
-            const json = await res.json();
-            if (json.data && Array.isArray(json.data)) {
-              json.data.forEach(item => {
-                if (item.eta) {
-                  const etaDate = new Date(item.eta);
-                  if (etaDate > new Date()) {
-                    allEta.push({
-                      route: item.route,
-                      dest: item.dest_tc,
-                      etaTime: etaDate,
-                      stopName: stop.name
-                    });
-                  }
-                }
-              });
-            }
-          }
-        }
+<div id="status">
+初始化中...
+</div>
 
-        // 排序並取前 8 班
-        allEta.sort((a, b) => a.etaTime - b.etaTime);
-        cachedBusData = allEta.slice(0, 8);
+<div id="lastUpdate">
+--
+</div>
 
-        renderFullList(cachedBusData);
-        
-        statusEl.innerHTML = `<span class="status-ok">● 官方 API 運行中 (已抓取 ${allEta.length} 個班次)</span>`;
-        lastUpdateEl.innerText = `最後更新: ${new Date().toTimeString().split(' ')[0]}`;
+</footer>
 
-      } catch (err) {
-        console.error("API Error:", err);
-        statusEl.innerHTML = `<span class="status-err">▲ 數據更新異常</span>`;
-      }
-    }
+<script>
 
-    fetchLiveETA();
-    setInterval(fetchLiveETA, 15000);
+const TARGET_STOPS = [
+'欣安',
+'恒安',
+'保泰街',
+'海典灣',
+'聽濤雅苑',
+'頌安'
+];
 
-    function renderFullList(list) {
-      const container = document.getElementById('busList');
-      if (!list || list.length === 0) {
-        container.innerHTML = `<div style="text-align:center; padding: 40px; color: #888;">目前該區段暫無班次資料，請稍候...</div>`;
-        return;
-      }
+const ROUTE_WHITELIST = [
+'43X',
+'81C',
+'85K',
+'85X',
+'87D',
+'89C',
+'286C',
+'286M',
+'286D',
+'680',
+'681',
+'681P',
+'682A',
+'N287',
+'NA40',
+'A41P'
+];
 
-      const now = new Date();
-      container.innerHTML = list.map((item, index) => {
-        const diffMs = item.etaTime - now;
-        const diffMins = Math.ceil(diffMs / 60000);
-        
-        let etaDisplay = '';
-        let arrivingClass = '';
+let discoveredStops = [];
+let routeData = [];
 
-        if (diffMins <= 0) {
-          etaDisplay = '即將到站';
-          arrivingClass = 'eta-arriving';
-        } else if (diffMins < 60) {
-          etaDisplay = `${diffMins} <span style="font-size:18px;">分鐘</span>`;
-        } else {
-          etaDisplay = item.etaTime.toTimeString().substring(0, 5);
-        }
+/* 全螢幕 */
 
-        const exactTimeStr = item.etaTime.toTimeString().substring(0, 5);
+document.body.addEventListener('click', async () => {
 
-        return `
-          <div class="bus-card" id="card-${index}">
-            <div class="route-info">
-              <div class="route-no">${item.route}</div>
-              <div class="dest-info">
-                <div class="dest-name">往 ${item.dest}</div>
-                <div class="stop-name">${item.stopName}</div>
-              </div>
-            </div>
-            <div class="eta-info">
-              <div class="eta-time ${arrivingClass}" id="eta-text-${index}">${etaDisplay}</div>
-              <div class="eta-sub">預計到站 ${exactTimeStr}</div>
-            </div>
-          </div>
-        `;
-      }).join('');
-    }
+if(!document.fullscreenElement){
 
-    function updateDOMCountdowns(now) {
-      cachedBusData.forEach((item, index) => {
-        const textEl = document.getElementById(`eta-text-${index}`);
-        if (!textEl) return;
+try{
+await document.documentElement.requestFullscreen();
+}catch(e){}
 
-        const diffMs = item.etaTime - now;
-        const diffMins = Math.ceil(diffMs / 60000);
+}
 
-        if (diffMs <= 0) {
-          textEl.className = 'eta-time eta-arriving';
-          textEl.innerText = '即將到站';
-        } else if (diffMins < 60) {
-          textEl.className = 'eta-time';
-          textEl.innerHTML = `${diffMins} <span style="font-size:18px;">分鐘</span>`;
-        } else {
-          textEl.className = 'eta-time';
-          textEl.innerText = item.etaTime.toTimeString().substring(0, 5);
-        }
-      });
-    }
+});
 
-    if ('wakeLock' in navigator) {
-      navigator.wakeLock.request('screen').catch(() => {});
-    }
-  </script>
+/* Wake Lock */
+
+async function enableWakeLock(){
+
+if('wakeLock' in navigator){
+
+try{
+await navigator.wakeLock.request('screen');
+}catch(e){
+console.log(e);
+}
+
+}
+
+}
+
+enableWakeLock();
+
+/* 時鐘 */
+
+function updateClock(){
+
+const now = new Date();
+
+document.getElementById('clock').innerText =
+now.toLocaleTimeString('zh-HK',{
+hour12:false
+});
+
+updateCountdowns(now);
+
+}
+
+setInterval(updateClock,1000);
+updateClock();
+
+/* 搜尋附近站 */
+
+async function discoverStops(){
+
+try{
+
+console.log('開始讀取KMB站點');
+
+const res = await fetch(
+'https://data.etabus.gov.hk/v1/transport/kmb/stop'
+);
+
+const json = await res.json();
+
+console.log('STOP DATA',json);
+
+if(!json.data){
+return [];
+}
+
+const found = json.data.filter(stop=>{
+
+const name = stop.name_tc || '';
+
+return TARGET_STOPS.some(
+keyword => name.includes(keyword)
+);
+
+});
+
+console.log('FOUND STOPS',found);
+
+return found.map(stop=>({
+
+id: stop.stop,
+name: stop.name_tc
+
+}));
+
+}catch(err){
+
+console.error(err);
+
+return [];
+}
+
+}
+
+/* 合併路線 */
+
+function groupRoutes(data){
+
+const grouped = {};
+
+data.forEach(item=>{
+
+const key =
+item.route + '_' + item.dest;
+
+if(!grouped[key]){
+
+grouped[key] = {
+
+route:item.route,
+dest:item.dest,
+stopName:item.stopName,
+etas:[]
+};
+
+}
+
+grouped[key].etas.push(item.etaTime);
+
+});
+
+return Object.values(grouped)
+
+.map(route=>{
+
+route.etas.sort(
+(a,b)=>a-b
+);
+
+route.etas =
+route.etas.slice(0,3);
+
+return route;
+
+})
+
+.sort(
+(a,b)=>
+a.etas[0]-b.etas[0]
+);
+
+}
+
+/* ETA */
+
+async function fetchETA(){
+
+if(!discoveredStops.length){
+return;
+}
+
+const allEta = [];
+
+for(const stop of discoveredStops){
+
+try{
+
+const url =
+`https://data.etabus.gov.hk/v1/transport/kmb/stop-eta/${stop.id}?_=${Date.now()}`;
+
+const res = await fetch(url,{
+cache:'no-store'
+});
+
+if(!res.ok){
+continue;
+}
+
+const json = await res.json();
+
+if(!json.data){
+continue;
+}
+
+json.data.forEach(item=>{
+
+if(!item.eta){
+return;
+}
+
+if(
+ROUTE_WHITELIST.length &&
+!ROUTE_WHITELIST.includes(item.route)
+){
+return;
+}
+
+const etaTime =
+new Date(item.eta);
+
+if(etaTime <= new Date()){
+return;
+}
+
+allEta.push({
+
+route:item.route,
+dest:item.dest_tc,
+stopName:stop.name,
+etaTime
+
+});
+
+});
+
+}catch(err){
+
+console.error(err);
+
+}
+
+}
+
+routeData =
+groupRoutes(allEta)
+.slice(0,12);
+
+renderRoutes();
+
+document.getElementById('status').innerHTML =
+'<span class="ok">● 官方API正常</span>';
+
+document.getElementById('lastUpdate').innerText =
+new Date().toLocaleTimeString('zh-HK',{
+hour12:false
+});
+
+}
+
+/* Render */
+
+function renderRoutes(){
+
+const container =
+document.getElementById('busList');
+
+if(!routeData.length){
+
+container.innerHTML =
+'<div style="padding:40px;text-align:center;color:#888;">暫無班次資料</div>';
+
+return;
+}
+
+container.innerHTML =
+routeData.map((route,index)=>{
+
+const etaText =
+route.etas.map(eta=>{
+
+const mins =
+Math.ceil(
+(eta - new Date()) / 60000
+);
+
+if(mins <= 1){
+return '即將到站';
+}
+
+return mins + '分鐘';
+
+}).join(' ｜ ');
+
+return `
+
+<div class="bus-card">
+
+<div class="route-block">
+
+<div class="route">
+${route.route}
+</div>
+
+<div>
+
+<div class="dest">
+往 ${route.dest}
+</div>
+
+<div class="stop">
+${route.stopName}
+</div>
+
+</div>
+
+</div>
+
+<div>
+
+<div class="eta-main"
+id="eta-${index}">
+${etaText}
+</div>
+
+<div class="eta-sub">
+共 ${route.etas.length} 班
+</div>
+
+</div>
+
+</div>
+
+`;
+
+}).join('');
+
+}
+
+/* 每秒更新ETA */
+
+function updateCountdowns(now){
+
+routeData.forEach((route,index)=>{
+
+const el =
+document.getElementById(
+`eta-${index}`
+);
+
+if(!el){
+return;
+}
+
+const etaText =
+route.etas.map(eta=>{
+
+const mins =
+Math.ceil(
+(eta - now) / 60000
+);
+
+if(mins <= 1){
+return '即將到站';
+}
+
+return mins + '分鐘';
+
+}).join(' ｜ ');
+
+el.innerHTML = etaText;
+
+if(
+etaText.includes('即將到站')
+){
+el.classList.add('arriving');
+}else{
+el.classList.remove('arriving');
+}
+
+});
+
+}
+
+/* 初始化 */
+
+async function init(){
+
+document.getElementById(
+'status'
+).innerText =
+'搜尋附近巴士站中...';
+
+discoveredStops =
+await discoverStops();
+
+console.log(
+'DISCOVERED STOPS',
+discoveredStops
+);
+
+if(!discoveredStops.length){
+
+document.getElementById(
+'status'
+).innerHTML =
+'<span class="err">找不到目標車站</span>';
+
+return;
+
+}
+
+await fetchETA();
+
+setInterval(
+fetchETA,
+15000
+);
+
+}
+
+init();
+
+</script>
+
 </body>
 </html>
