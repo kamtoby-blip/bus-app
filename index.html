@@ -6,7 +6,7 @@
   <title>欣安邨 巴士實時報站屏</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body { background-color: #050505; color: #fff; height: 100vh; overflow: hidden; padding: 15px; display: flex; flex-direction: column; }
+    body { background-color: #050505; color: #fff; height: 100vh; overflow: hidden; padding: 15px; display: flex; flex-direction: column; cursor: pointer; }
     
     header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #333; padding-bottom: 12px; margin-bottom: 15px; }
     .title { font-size: 22px; font-weight: bold; color: #ffcc00; display: flex; align-items: center; gap: 8px; }
@@ -15,7 +15,6 @@
     
     .bus-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
     .bus-card { background: #121212; border-left: 6px solid #e60012; border-radius: 8px; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,0.5); }
-    .bus-card.ctb { border-left-color: #0055a5; }
     
     .route-info { display: flex; align-items: center; gap: 15px; }
     .route-no { font-size: 32px; font-weight: 900; width: 85px; color: #fff; }
@@ -55,6 +54,7 @@
   </footer>
 
   <script>
+    // 已核對之欣安邨一帶九巴站點
     const KMB_STOPS = [
       { id: '6314BAEA00947DE6', name: '欣安邨 (往馬鞍山)' },
       { id: '9079A492BF4A5964', name: '恒安站 / 欣安邨對面' },
@@ -63,18 +63,25 @@
 
     let cachedBusData = [];
 
-    function updateClock() {
+    // 點擊任意處進入全螢幕
+    document.body.addEventListener('click', () => {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      }
+    });
+
+    // 1. 每秒更新時鐘與倒數文字（不重建 DOM，極省資源）
+    function tick() {
       const now = new Date();
       document.getElementById('clock').innerText = now.toTimeString().split(' ')[0];
       
-      // 如果已有緩存數據，每秒在畫面上即時重新計算剩餘分鐘，實現動態倒數
       if (cachedBusData.length > 0) {
-        renderList(cachedBusData);
+        updateDOMCountdowns(now);
       }
     }
-    setInterval(updateClock, 1000);
-    updateClock();
+    setInterval(tick, 1000);
 
+    // 2. 每 15 秒向政府 API 抓取一次最新資料
     async function fetchLiveETA() {
       const statusEl = document.getElementById('status');
       const lastUpdateEl = document.getElementById('lastUpdate');
@@ -82,37 +89,39 @@
 
       try {
         for (const stop of KMB_STOPS) {
-          // 加入亂數參數 _t=Date.now() 防止瀏覽器快取舊數據
-          const url = `https://data.etabus.gov.hk/v1/transport/kmb/stop-eta/${stop.id}`;
-          const res = await fetch(url, { cache: "no-store" });
+          // 正確組裝 URL，帶有時間戳防快取
+          const url = `https://data.etabus.gov.hk/v1/transport/kmb/stop-eta/${stop.id}?_t=${Date.now()}`;
+          const res = await fetch(url, { cache: 'no-store' });
           
           if (res.ok) {
             const json = await res.json();
             if (json.data && Array.isArray(json.data)) {
               json.data.forEach(item => {
                 if (item.eta) {
-                  allEta.push({
-                    route: item.route,
-                    dest: item.dest_tc,
-                    etaTime: new Date(item.eta), // 記錄準確到站時間點
-                    co: item.co || 'KMB',
-                    stopName: stop.name
-                  });
+                  const etaDate = new Date(item.eta);
+                  // 過濾已過期的班次
+                  if (etaDate > new Date()) {
+                    allEta.push({
+                      route: item.route,
+                      dest: item.dest_tc,
+                      etaTime: etaDate,
+                      stopName: stop.name
+                    });
+                  }
                 }
               });
             }
           }
         }
 
-        // 按到站時間先後排序
+        // 按到站時間先後排序，取前 8 班
         allEta.sort((a, b) => a.etaTime - b.etaTime);
-        cachedBusData = allEta; // 儲存至全域變數供每秒倒數使用
+        cachedBusData = allEta.slice(0, 8);
 
-        renderList(cachedBusData);
+        renderFullList(cachedBusData);
         
         statusEl.innerHTML = `<span class="status-ok">● 官方 API 連線正常</span>`;
-        const now = new Date();
-        lastUpdateEl.innerText = `最後更新: ${now.toTimeString().split(' ')[0]}`;
+        lastUpdateEl.innerText = `最後更新: ${new Date().toTimeString().split(' ')[0]}`;
 
       } catch (err) {
         console.error("API Error:", err);
@@ -120,19 +129,23 @@
       }
     }
 
-    function renderList(list) {
+    // 初次載入與定時更新
+    fetchLiveETA();
+    setInterval(fetchLiveETA, 15000);
+
+    // 完整建立列表 DOM（每 15 秒執行一次）
+    function renderFullList(list) {
       const container = document.getElementById('busList');
       if (!list || list.length === 0) {
         container.innerHTML = `<div style="text-align:center; padding: 40px; color: #888;">暫無即時班次資料</div>`;
         return;
       }
 
-      const topList = list.slice(0, 8);
       const now = new Date();
-
-      container.innerHTML = topList.map(item => {
-        const diffMs = new Date(item.etaTime) - now;
-        const diffMins = Math.floor(diffMs / 60000);
+      container.innerHTML = list.map((item, index) => {
+        const diffMs = item.etaTime - now;
+        // 使用 Math.ceil 進位，符合巴士站習慣
+        const diffMins = Math.ceil(diffMs / 60000);
         
         let etaDisplay = '';
         let arrivingClass = '';
@@ -146,11 +159,10 @@
           etaDisplay = item.etaTime.toTimeString().substring(0, 5);
         }
 
-        const exactTimeStr = new Date(item.etaTime).toTimeString().substring(0, 5);
-        const isCTB = item.co === 'CTB';
+        const exactTimeStr = item.etaTime.toTimeString().substring(0, 5);
 
         return `
-          <div class="bus-card ${isCTB ? 'ctb' : ''}">
+          <div class="bus-card" id="card-${index}" data-time="${item.etaTime.getTime()}">
             <div class="route-info">
               <div class="route-no">${item.route}</div>
               <div class="dest-info">
@@ -159,7 +171,7 @@
               </div>
             </div>
             <div class="eta-info">
-              <div class="eta-time ${arrivingClass}">${etaDisplay}</div>
+              <div class="eta-time ${arrivingClass}" id="eta-text-${index}">${etaDisplay}</div>
               <div class="eta-sub">預計到站 ${exactTimeStr}</div>
             </div>
           </div>
@@ -167,9 +179,33 @@
       }).join('');
     }
 
-    // 每 15 秒向政府 API 抓取一次最新時間
-    fetchLiveETA();
-    setInterval(fetchLiveETA, 15000);
+    // 每秒只更新畫面上數字，不重新產生 HTML，極度流暢
+    function updateDOMCountdowns(now) {
+      cachedBusData.forEach((item, index) => {
+        const card = document.getElementById(`card-${index}`);
+        const textEl = document.getElementById(`eta-text-${index}`);
+        if (!card || !textEl) return;
+
+        const diffMs = item.etaTime - now;
+        const diffMins = Math.ceil(diffMs / 60000);
+
+        if (diffMs <= 0) {
+          textEl.className = 'eta-time eta-arriving';
+          textEl.innerText = '即將到站';
+        } else if (diffMins < 60) {
+          textEl.className = 'eta-time';
+          textEl.innerHTML = `${diffMins} <span style="font-size:18px;">分鐘</span>`;
+        } else {
+          textEl.className = 'eta-time';
+          textEl.innerText = item.etaTime.toTimeString().substring(0, 5);
+        }
+      });
+    }
+
+    // 保持螢幕常亮
+    if ('wakeLock' in navigator) {
+      navigator.wakeLock.request('screen').catch(() => {});
+    }
   </script>
 </body>
 </html>
